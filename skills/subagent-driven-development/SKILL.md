@@ -78,7 +78,12 @@ digraph process {
     "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
+    "Code quality reviewer subagent approves?" -> "Dispatch code-reviewer subagent (security+performance)" [label="yes"];
+    "Dispatch code-reviewer subagent (security+performance)" -> "Present code-reviewer findings to human partner" ;
+    "Present code-reviewer findings to human partner" -> "Implementer subagent fixes confirmed issues" [label="issues found"];
+    "Present code-reviewer findings to human partner" -> "Mark task complete in TodoWrite" [label="no issues"];
+    "Implementer subagent fixes confirmed issues" -> "Re-dispatch code-reviewer" [label="re-review"];
+    "Re-dispatch code-reviewer" -> "Mark task complete in TodoWrite" [label="approved"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
@@ -248,6 +253,46 @@ Done!
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
 - Move to next task while either review has open issues
+
+<!-- CUSTOM-START: subagent-code-review -->
+**Code-Reviewer Subagent (after code quality reviewer approves):**
+
+After the code quality reviewer approves, dispatch the `code-reviewer` named subagent for a deeper security and performance review:
+
+Use Agent tool with `code-reviewer` subagent_type:
+
+```
+Agent tool:
+  subagent_type: code-reviewer
+  description: "Security and performance review"
+  prompt: |
+    DESCRIPTION: {TASK_SUMMARY}
+    BASE_SHA: {BASE_SHA}
+    HEAD_SHA: {HEAD_SHA}
+```
+
+**Present code-reviewer findings to your human partner:**
+
+Summarize findings and use AskUserQuestion to let your human partner decide which to address:
+
+```
+AskUserQuestion:
+  questions:
+    - question: "Code reviewer found the following issues for Task N. Which should be fixed?"
+      header: "Code Review"
+      multiSelect: true
+      options:
+        - label: "Issue 1: [description]"
+          description: "[severity, file:line, impact]"
+        - label: "Issue 2: [description]"
+          description: "[severity, file:line, impact]"
+        ...
+```
+
+Fix only confirmed issues, then re-dispatch code-reviewer for re-review.
+
+**Project-level override:** Projects can customize code review by placing a `.claude/agents/code-reviewer.md` in their project root.
+<!-- CUSTOM-END: subagent-code-review -->
 
 **If subagent asks questions:**
 - Answer clearly and completely
