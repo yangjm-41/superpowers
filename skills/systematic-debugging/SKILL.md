@@ -13,6 +13,62 @@ Random fixes waste time and create new bugs. Quick patches mask underlying issue
 
 **Violating the letter of this process is violating the spirit of debugging.**
 
+<!-- CUSTOM-START: log-precondition -->
+## Phase 0: Log Pre-processing
+
+Before entering Phase 1, check if the user's input contains large log content that needs denoising.
+
+**Detection rules (match any one):**
+
+1. **Explicit log reference in message:** User's message contains phrases like "以上是日志"/"以下是日志"/"请帮我分析日志"/"log file"/"日志文件" or similar expressions indicating the content is log output to be analyzed
+2. **Log file attachment:** User referenced a file with `.log` extension (e.g., `@error.log`, `@debug.log`) or file paths containing `/logs/` or `/log/` directory segments
+3. **Log file provided as content:** User pasted content containing recognizable log patterns — timestamps with severity levels (e.g., `2024-01-15 10:30:45 ERROR`), structured log format (JSON logs, syslog format), stack traces with `at com.xxx.Class.method(File.java:123)`, or repeated entries from known logging frameworks (Log4j, SLF4J, Python logging, etc.)
+
+**Line count threshold:** If matched above, estimate whether the log content exceeds roughly 66 lines. If under 66 lines, skip denoising and proceed directly to Phase 1.
+
+**If detection passes AND exceeds 66 lines:**
+
+**1. Dispatch log denoiser:**
+
+Use Agent tool with `log-denoiser` subagent_type:
+
+```
+Agent tool:
+  subagent_type: log-denoiser
+  description: "Denoise log content"
+  prompt: |
+    Analyze and reduce noise in the following log content.
+    Extract key errors, exception stacks, timeline, and preliminary root cause analysis.
+
+    Log content:
+    {LOG_CONTENT}
+```
+
+**2. Present denoised results to your human partner:**
+
+Summarize the denoised output and use AskUserQuestion to confirm:
+
+```
+AskUserQuestion:
+  questions:
+    - question: "Log denoiser extracted the following key findings. Which should we focus on for debugging?"
+      header: "Log Analysis"
+      multiSelect: true
+      options:
+        - label: "Error 1: [description]"
+          description: "[severity, occurrence count, location]"
+        - label: "Error 2: [description]"
+          description: "[severity, occurrence count, location]"
+        ...
+```
+
+**3. Use confirmed findings as the starting point for Phase 1.**
+
+**Project-level override:** Projects can customize log denoising by placing a `.claude/agents/log-denoiser.md` in their project root.
+
+**Reusable rule:** This log pre-processing pattern applies whenever an agent encounters large log content from the user, regardless of which skill is active. Other skills should reference this section when similar conditions arise.
+<!-- CUSTOM-END: log-precondition -->
+
 ## The Iron Law
 
 ```
@@ -259,6 +315,7 @@ If you catch yourself thinking:
 
 | Phase | Key Activities | Success Criteria |
 |-------|---------------|------------------|
+| **0. Log Pre-processing** | Detect log content, denoise via subagent, confirm with user | Focused debugging starting point |
 | **1. Root Cause** | Read errors, reproduce, check changes, gather evidence | Understand WHAT and WHY |
 | **2. Pattern** | Find working examples, compare | Identify differences |
 | **3. Hypothesis** | Form theory, test minimally | Confirmed or new hypothesis |
