@@ -119,7 +119,60 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - Exact commands with expected output
 - DRY, YAGNI, TDD, frequent commits
 
+<!-- CUSTOM-START: subagent-plan-review -->
+## Subagent Plan Review
+
+Before self-review, dispatch a plan-reviewer subagent for an independent quality check. This catches issues the plan author missed due to familiarity bias. The subagent's findings feed into self-review for unified handling.
+
+**1. Dispatch plan reviewer:**
+
+Use Agent tool with `plan-reviewer` subagent_type:
+
+```
+Agent tool:
+  subagent_type: plan-reviewer
+  description: "Review implementation plan"
+  prompt: |
+    Review the implementation plan at {PLAN_PATH} against the design spec at {SPEC_PATH}.
+
+    Check for:
+    - Spec coverage completeness
+    - Task granularity (2-5 minute bite-sized steps)
+    - Dependency ordering and circular dependencies
+    - Technical consistency across tasks
+    - Risk identification and rollback strategies
+
+    Return your findings in the standard review format.
+```
+
+**2. Present findings to your human partner:**
+
+Summarize the subagent's findings and use AskUserQuestion to let your human partner decide which issues to address:
+
+```
+AskUserQuestion:
+  questions:
+    - question: "Plan reviewer found the following issues. Which should be fixed?"
+      header: "Plan Review"
+      multiSelect: true
+      options:
+        - label: "Issue 1: [description]"
+          description: "[severity and impact]"
+        - label: "Issue 2: [description]"
+          description: "[severity and impact]"
+        ...
+```
+
+**3. Fix only confirmed issues**, then proceed to self-review.
+
+**Project-level override:** Projects can customize plan review by placing a `.claude/agents/plan-reviewer.md` in their project root. This overrides the default reviewer's dimensions and output format.
+<!-- CUSTOM-END: subagent-plan-review -->
+
 ## Self-Review
+
+<!-- CUSTOM-START: self-review-with-subagent -->
+Incorporate the plan-reviewer subagent's confirmed findings into this self-review. Fix all issues — both your own and the subagent's — in a single pass.
+<!-- CUSTOM-END: self-review-with-subagent -->
 
 After writing the complete plan, look at the spec with fresh eyes and check the plan against it. This is a checklist you run yourself — not a subagent dispatch.
 
